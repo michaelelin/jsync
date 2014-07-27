@@ -2,6 +2,7 @@ package com.p1software.jsync;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.jsoup.Jsoup;
@@ -51,7 +52,7 @@ public class DocumentParser {
             Document doc = Jsoup.connect(url).get();
             List<Node> nodes = doc.body().getElementsByTag("pre").first().childNodes();
             Node description = null;
-            int i = 0;
+            List<RemoteObject> objects = new ArrayList<RemoteObject>();
             for (Node node : nodes) {
                 String name = node.nodeName();
                 if (name.equals("br")) {
@@ -61,52 +62,58 @@ public class DocumentParser {
                     description = node;
                 }
                 else if (name.equals("a") && description != null) {
-                    RemoteObject object = RemoteObject.construct(new RemoteEntry(description, node));
-                    if (object instanceof RemoteDirectory || object.getName().matches(mask)) {
-                        RemoteDirectory cachedDir = null;
-                        if (parallel == null) {
-                            manager.callEvent(null, object);
-                        }
-                        else {
-                            int c;
-                            do {
-                                if (i < parallel.size()) {
-                                    RemoteObject cached = parallel.get(i);
-                                    c = cached.compareTo(object);
-                                    if (c > 0) { // Cached object is ahead (created)
-                                        manager.callEvent(null, object);
-                                        break;
-                                    }
-                                    else if (c < 0) { // Cached object is behind (removed)
-                                        manager.callEvent(cached, null);
-                                    }
-                                    else if (!object.equals(cached)) { // Same name/location (changed)
-                                        manager.callEvent(cached, object);
-                                    }
-                                    if (cached instanceof RemoteDirectory) {
-                                        cachedDir = (RemoteDirectory) cached;
-                                    }
-                                    i++;
-                                }
-                                else {
-                                    manager.callEvent(null, object);
-                                    c = 1;
-                                }
-                            }
-                            while (c < 0);
-                        }
-                        if (object instanceof RemoteDirectory) {
-                            ((RemoteDirectory) object).buildAlongside(this, cachedDir);
-                        }
-                        contents.add(object);
-                        description = null;
-                    }
+                	RemoteObject object = RemoteObject.construct(new RemoteEntry(description, node));
+                	if (object instanceof RemoteDirectory || object.getName().matches(mask)) {
+	                	objects.add(object);
+	                	if (object instanceof RemoteDirectory) {
+	                		if (parallel == null) {
+	                			((RemoteDirectory) object).buildAlongside(this, null);
+	                		}
+	                		else {
+		                		for (RemoteObject local : parallel) {
+		                			if (local instanceof RemoteDirectory && object.getLocation().equals(local.getLocation())) {
+		                				((RemoteDirectory) object).buildAlongside(this, (RemoteDirectory) local);
+		                				break;
+		                			}
+		                		}
+	                		}
+	                		if (((RemoteDirectory) object).getContents() == null) {
+	                			System.out.println("Contents of " + object.getName() + " null; parallel: " + parallel);
+	                		}
+	                	}
+                	}
                 }
             }
-            if (parallel != null) {
-                for (; i < parallel.size(); i++) {
-                    manager.callEvent(parallel.get(i), null);
-                }
+            Collections.sort(objects);
+            for (RemoteObject object : objects) {
+            	contents.add(object);
+            }
+            if (parallel == null) {
+            	for (RemoteObject object : objects) {
+            		manager.callEvent(null, object);
+            	}
+            }
+            else {
+            	objects.removeAll(parallel);
+            	parallel.removeAll(contents);
+            	for (int i = 0; i < objects.size(); i++) {
+            		boolean flag = true;
+            		for (int j = 0; j < parallel.size() && flag; j++) {
+            			if (objects.get(i).getLocation().equals(parallel.get(j).getLocation())) {
+            				manager.callEvent(parallel.get(j), objects.get(i));
+            				parallel.remove(j);
+            				flag = false;
+            			}
+            		}
+            		if (flag) {
+            			manager.callEvent(null, objects.get(i));
+            		}
+            		objects.remove(i--);
+            	}
+            	for (int i = 0; i < parallel.size(); i++) {
+            		manager.callEvent(parallel.get(i), null);
+            		parallel.remove(i--);
+            	}
             }
         }
         catch (Exception e) {
@@ -128,9 +135,16 @@ public class DocumentParser {
 			}
 			catch (Exception e) {
 				cached = null;
+				System.out.println("Cached is null!");
+				e.printStackTrace();
 			}
 			List<RemoteObject> result = getContents(remote, cached);
-			mapper.writeValue(sync, result);
+			if (cached.isEmpty()) {
+				System.out.println("Cached is empty");
+			}
+			else {
+				mapper.writeValue(sync, result);
+			}
 			return true;
     	}
     	catch (Exception e) {
