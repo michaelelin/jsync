@@ -77,9 +77,6 @@ public class DocumentParser {
 		                			}
 		                		}
 	                		}
-	                		if (((RemoteDirectory) object).getContents() == null) {
-	                			System.out.println("Contents of " + object.getName() + " null; parallel: " + parallel);
-	                		}
 	                	}
                 	}
                 }
@@ -138,13 +135,12 @@ public class DocumentParser {
 				System.out.println("Cached is null!");
 				e.printStackTrace();
 			}
-			List<RemoteObject> result = getContents(remote, cached);
 			if (cached.isEmpty()) {
 				System.out.println("Cached is empty");
+				manager.removeAllListeners();
 			}
-			else {
-				mapper.writeValue(sync, result);
-			}
+			List<RemoteObject> result = getContents(remote, cached);
+			mapper.writeValue(sync, result);
 			return true;
     	}
     	catch (Exception e) {

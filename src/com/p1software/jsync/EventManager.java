@@ -11,6 +11,10 @@ public class EventManager {
         listeners.add(listener);
     }
     
+    public void removeAllListeners() {
+    	listeners = new ArrayList<JsonListener>();
+    }
+    
     public void callEvent(RemoteObject before, RemoteObject after) {
         if (after == null) {
             handleRemoved(before);
