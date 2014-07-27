@@ -129,14 +129,14 @@ public class DocumentParser {
 			File sync = new File(local, syncFile);
 			try {
 		    	cached = mapper.treeToValue(mapper.readTree(sync), ArrayList.class);
+				if (cached.isEmpty()) {
+					System.out.println("Cached is empty");
+					manager.removeAllListeners();
+				}
 			}
 			catch (Exception e) {
 				cached = null;
 				System.out.println("Cached is null!");
-				e.printStackTrace();
-			}
-			if (cached.isEmpty()) {
-				System.out.println("Cached is empty");
 				manager.removeAllListeners();
 			}
 			List<RemoteObject> result = getContents(remote, cached);
